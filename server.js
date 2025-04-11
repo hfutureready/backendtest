@@ -4,9 +4,9 @@ const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
 const pdfParse = require("pdf-parse");
-const poppler = require("pdf-poppler");
 const { ocr } = require("llama-ocr");
 require("dotenv").config();
+
 const { sendToLLM } = require("./llmHandler");
 const { generateMedicalSummaryPrompt } = require("./promptManager");
 
@@ -14,102 +14,99 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Uploads directory
 const uploadDir = path.join(__dirname, "uploads");
-const imageDir = path.join(__dirname, "images");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-if (!fs.existsSync(imageDir)) fs.mkdirSync(imageDir);
 
+// Multer storage config
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
-    const name = `${Date.now()}-${file.originalname.replace(/\s+/g, "_")}`;
-    cb(null, name);
+    const timestamp = Date.now();
+    const cleanName = file.originalname.replace(/\s+/g, "_");
+    cb(null, `${timestamp}-${cleanName}`);
   },
 });
-const upload = multer({ storage });
 
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = [".pdf", ".jpg", ".jpeg", ".png"];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedTypes.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Unsupported file type"));
+    }
+  },
+});
+
+// Handle image OCR
 async function processImage(filePath) {
-  const result = await ocr({
+  return await ocr({
     filePath,
     apiKey: process.env.TOGETHER_API_KEY,
   });
-  return result;
 }
 
-async function processPDF(filePath, outputPrefix) {
-  try {
-    const dataBuffer = fs.readFileSync(filePath);
-    const parsed = await pdfParse(dataBuffer);
-    if (parsed.text && parsed.text.trim().length > 30) {
-      console.log("✅ Used digital parsing");
-      return { text: parsed.text.trim(), source: "parser" };
-    }
-  } catch (err) {
-    console.warn("⚠️ Digital parse failed:", err.message);
+// Handle PDF parsing
+async function processPDF(filePath) {
+  const dataBuffer = fs.readFileSync(filePath);
+  const parsed = await pdfParse(dataBuffer);
+  if (parsed.text && parsed.text.trim().length > 0) {
+    console.log("✅ PDF parsed successfully");
+    return { text: parsed.text.trim(), source: "parser" };
   }
-  console.log("🔁 Falling back to OCR");
-  const imagePaths = await convertPDFToImages(filePath, outputPrefix);
-  const allTexts = [];
-  for (const img of imagePaths) {
-    const result = await processImage(img);
-    allTexts.push(result);
-  }
-  return { text: allTexts.join("\n\n"), source: "ocr" };
+  throw new Error("Empty or invalid PDF content");
 }
 
-async function convertPDFToImages(filePath, prefix) {
-  const options = {
-    format: "jpeg",
-    out_dir: imageDir,
-    out_prefix: prefix,
-    page: null,
-  };
-  await poppler.convert(filePath, options);
-  const allFiles = fs.readdirSync(imageDir);
-  return allFiles
-    .filter((file) => file.startsWith(prefix) && file.endsWith(".jpg"))
-    .map((file) => path.join(imageDir, file));
-}
-
+// Upload endpoint
 app.post("/upload", upload.single("file"), async (req, res) => {
   const start = Date.now();
-  console.log("📥 Upload started");
+  console.log("📥 Upload received");
+
   if (!req.file) {
     return res.status(400).json({ message: "No file uploaded" });
   }
+
   const filePath = path.join(uploadDir, req.file.filename);
   const fileExt = path.extname(req.file.originalname).toLowerCase();
-  const outputPrefix = path.parse(req.file.filename).name;
 
   try {
     let result;
+
     if (fileExt === ".pdf") {
       console.log("📄 Processing PDF...");
-      result = await processPDF(filePath, outputPrefix);
-    } else if ([".jpg", ".jpeg", ".png"].includes(fileExt)) {
+      result = await processPDF(filePath);
+    } else {
       console.log("🖼 Processing Image...");
       const ocrText = await processImage(filePath);
       result = { text: ocrText, source: "ocr" };
-    } else {
-      return res.status(400).json({ message: "Unsupported file type" });
     }
-    console.log("🧠 Creating prompt...");
+
+    console.log("🧠 Generating prompt...");
     const prompt = generateMedicalSummaryPrompt(result.text);
+
     console.log("🤖 Sending to LLM...");
     const llmResponse = await sendToLLM(prompt);
+
     const duration = ((Date.now() - start) / 1000).toFixed(2);
     console.log(`✅ Completed in ${duration}s`);
+
     res.status(200).json({
       message: `Processed with ${result.source}`,
       llmResponse,
       processingTime: `${duration}s`,
     });
   } catch (err) {
-    console.error("❌ Error during processing:", err.message);
+    console.error("❌ Processing error:", err.message);
     res.status(500).json({ message: "Processing failed", error: err.message });
   }
 });
 
-app.listen(4000, () => {
-  console.log("✅ Server running on http://localhost:4000");
+// Start server
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server live at http://localhost:${PORT}`);
 });
