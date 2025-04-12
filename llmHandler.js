@@ -4,14 +4,11 @@ dotenv.config();
 
 const together = new Together({ apiKey: process.env.TOGETHER_API_KEY });
 
-export async function sendToLLM(text) {
-  if (!text || text.trim().length === 0) {
-    throw new Error("No text provided to LLM.");
-  }
-
+export async function sendToLLM(messageslist) {
+  
   try {
     const response = await together.chat.completions.create({
-      messages: [{ role: "user", content: text }],
+      messages: messageslist,
       model: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
     });
 
