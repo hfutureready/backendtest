@@ -13,7 +13,7 @@ const { generateMedicalSummaryPrompt , generatemedicinesummary} = require("./pro
 const app = express();
 
 const allowedOrigins = [
-  "https://frontendtest-8xf8cmda1-hfuturereadys-projects.vercel.app"
+  "https://frontendtest-three.vercel.app"
 ];
 
 app.use(cors({
