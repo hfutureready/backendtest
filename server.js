@@ -16,7 +16,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: ["http://localhost:5173"], // Include possible frontend ports
+    origin: ["https://frontendtest-three.vercel.app"], // Include possible frontend ports
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
