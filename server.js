@@ -206,6 +206,7 @@ async function startServer() {
         name: req.user.name,
         email: req.user.email,
         dob: req.user.dob,
+        healthrecords: req.user.healthrecords,
         reportsCount: req.user.reportscount,
         scansCount: req.user.scanscount,
         queriesCount: req.user.queriescount,
