@@ -9,14 +9,14 @@ const { ocr } = require("llama-ocr");
 const jwt = require("jsonwebtoken");
 const { Pool } = require("pg");
 const { sendToLLM } = require("./llmHandler");
-const { generateMedicalSummaryPrompt, generatemedicinesummary } = require("./promptManager");
+const { generateMedicalSummaryPrompt, generateMedicineSummary } = require("./promptManager");
 const { initDatabase } = require("./dbSetup");
 
 const app = express();
 
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://localhost:3000"], // Include possible frontend ports
+    origin: ["http://localhost:5173"], // Include possible frontend ports
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
@@ -141,6 +141,7 @@ async function startServer() {
 
       const token = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: "24h" });
       console.log("✅ Token generated for user:", email);
+      console.log("User data:", user);
       res.status(200).json({ exists: true, token, user });
     } catch (err) {
       console.error("DB error:", err);
@@ -206,12 +207,13 @@ async function startServer() {
         name: req.user.name,
         email: req.user.email,
         dob: req.user.dob,
-        healthrecords: req.user.healthrecords,
         reportsCount: req.user.reportscount,
         scansCount: req.user.scanscount,
         queriesCount: req.user.queriescount,
         activities: await getUserActivities(req.user.email),
+
       });
+      
     } catch (err) {
       console.error("DB error:", err);
       res.status(500).json({ message: "Server error" });
@@ -330,21 +332,21 @@ async function startServer() {
         history.push({
           role: "system",
           content:
-            "You are a medical AI assistant. Your task is to respond to health-related queries with accurate and relevant information. If the user's question is not related to health, politely guide them to ask questions about their health data. Always provide clear, supportive, and helpful responses. If you don't have enough information to provide a clear answer, advise the user to consult a healthcare professional.",
-        });
+            `You are a helpful AI assistant trained to analyze raw lab report text.
+ 
+            Your job is to summarize medical findings in simple, clear terms for a non-medical person, `       
+           });
       }
 
       if ([".jpg", ".jpeg", ".png"].includes(fileExt)) {
         console.log("🖼 Detected image file - starting OCR...");
         const ocrText = await processImage(filePath);
-        console.log("🔍 OCR Output:", ocrText.slice(0, 500));
         result = { text: ocrText, source: "ocr" };
       } else if (fileExt === ".pdf") {
         console.log("📄 Detected PDF - starting parsing...");
         try {
           const parsed = await processPDF(filePath);
           console.log("✅ Digital PDF parsed successfully");
-          console.log("🔍 Parsed PDF Text:", parsed.text.slice(0, 500));
           result = { text: parsed.text.trim(), source: "parser" };
         } catch (parseError) {
           console.error("❌ PDF parsing failed:", parseError.message);
@@ -426,6 +428,7 @@ async function startServer() {
     }
 
     const language = req.body.language || "";
+    console.log("🌐 Language preference:", language);
 
     let client;
     try {
@@ -440,8 +443,8 @@ async function startServer() {
         history.push({
           role: "system",
           content:
-            "You are an advanced AI assistant specialized in medical text analysis and health advisory. Your task is to process the scanned text from a medicine backstrip, extract relevant information (such as drug name, composition, dosage, and indications), and analyze it in the context of the user's past health data.",
-        });
+         `You are a helpful AI assistant analyzing medicine-related text.`
+         });
       }
 
       if ([".jpg", ".jpeg", ".png"].includes(fileExt)) {
@@ -454,7 +457,7 @@ async function startServer() {
       }
 
       console.log("🧠 Generating medicine prompt...");
-      const prompt = generatemedicinesummary(result.text, language, req.user.age, req.user.healthRecords);
+      const prompt = generateMedicineSummary(result.text, language, req.user.age, req.user.healthRecords);
 
       history.push({ role: "user", content: prompt });
 
