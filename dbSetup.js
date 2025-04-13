@@ -66,27 +66,27 @@ async function initDatabase() {
       console.log("ℹ️ Users already exist. No dummy user inserted.");
     }
 
-    // Fetch all data from the database
-    console.log("📊 Fetching all data...");
+//     // Fetch all data from the database
+//     console.log("📊 Fetching all data...");
 
-    // Fetch all users
-    const users = await pool.query("SELECT * FROM users");
-    console.log("🧑‍💻 Users:", users.rows);
+//     // Fetch all users
+//     const users = await pool.query("SELECT * FROM users");
+//     console.log("🧑‍💻 Users:", users.rows);
 
-    // Fetch all activities
-    const activities = await pool.query("SELECT * FROM activities");
-    console.log("📝 Activities:", activities.rows);
+//     // Fetch all activities
+//     const activities = await pool.query("SELECT * FROM activities");
+//     console.log("📝 Activities:", activities.rows);
 
 
-    // Fetch all session data
-    const sessions = await pool.query("SELECT * FROM session");
-    console.log("📅 Sessions:", sessions.rows);
+//     // Fetch all session data
+//     const sessions = await pool.query("SELECT * FROM session");
+//     console.log("📅 Sessions:", sessions.rows);
 
-// Loop through the sessions to print the cookie
-    sessions.rows.forEach(session => {
-        console.log("🧑‍💻 Session ID:", session.sid);
-    console.log("📄 Cookie:", session.sess.cookie);  // Print the cookie object for each session
-    });
+// // Loop through the sessions to print the cookie
+//     sessions.rows.forEach(session => {
+//         console.log("🧑‍💻 Session ID:", session.sid);
+//     console.log("📄 Cookie:", session.sess.cookie);  // Print the cookie object for each session
+//     });
 
   } catch (err) {
     console.error("❌ Error initializing database:", err.message);
